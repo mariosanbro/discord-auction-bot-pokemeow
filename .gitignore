@@ -1,4 +1,7 @@
 __pycache__/
 .pytest_cache/
+.venv/
+.vscode/
+.env
 database_test.py
 database.db

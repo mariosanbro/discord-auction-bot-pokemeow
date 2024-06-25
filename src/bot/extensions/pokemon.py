@@ -1,0 +1,37 @@
+from ...database.database import get_database_manager
+from ...database.models import Pokemon as PokemonModel
+import discord
+from discord.ext import commands
+
+
+class Pokemon(commands.Cog):
+    def __init__(self, bot: commands.Bot) -> None:
+        self.bot = bot
+        self.database_manager = get_database_manager()
+        
+    POKEMON = discord.app_commands.Group(name="pokemon", description="Pokemon related commands")
+        
+    @POKEMON.command(name="add", description="Add a pokemon to the database")
+    @discord.app_commands.choices(
+        rarity = [
+            discord.app_commands.Choice[int](name="Common", value=1),
+            discord.app_commands.Choice[int](name="Uncommon", value=2),
+            discord.app_commands.Choice[int](name="Rare", value=3),
+            discord.app_commands.Choice[int](name="Super Rare", value=4),
+            discord.app_commands.Choice[int](name="Legendary", value=6),
+            discord.app_commands.Choice[int](name="Shiny", value=8),
+            discord.app_commands.Choice[int](name="Form (Mega or Form)", value=10),
+            discord.app_commands.Choice[int](name="Shiny Form (Mega or Form)", value=11),
+            discord.app_commands.Choice[int](name="Gigantamax", value=12),
+            discord.app_commands.Choice[int](name="Shiny Gigantamax", value=13),
+            discord.app_commands.Choice[int](name="Golden", value=14),
+            ]
+        )
+    async def pokemon_add(self, interaction: discord.Interaction, dex_number: int, name: str, rarity: int) -> None:
+        pokemon = PokemonModel(dex_number=dex_number, name=name, rarity=rarity)
+        await self.database_manager.insert(pokemon)
+        
+        await interaction.response.send_message(f"Pokemon {name} added to the database")
+
+async def setup(bot: commands.Bot) -> None:
+    await bot.add_cog(Pokemon(bot))

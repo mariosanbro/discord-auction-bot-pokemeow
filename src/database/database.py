@@ -3,9 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, create_async_engin
 from sqlalchemy.future import select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.decl_api import DeclarativeMeta
-from src.database.models import Base
+from ..database.models import Base
 
 DATABASE_URL = "sqlite+aiosqlite:///./src/database/database.db"
+DATABASE_MANAGER = None
 
 class DatabaseManager:
     def __init__(self, database_url: str) -> None:
@@ -81,3 +82,9 @@ class DatabaseManager:
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             return True
+
+def get_database_manager() -> DatabaseManager:
+    if DATABASE_MANAGER is None:
+        return DatabaseManager(DATABASE_URL)
+    else:
+        return DATABASE_MANAGER
