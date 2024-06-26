@@ -27,8 +27,8 @@ class Pokemon(commands.Cog):
             discord.app_commands.Choice[int](name="Golden", value=14),
             ]
         )
-    async def pokemon_add(self, interaction: discord.Interaction, dex_number: int, name: str, rarity: int) -> None:
-        pokemon = PokemonModel(dex_number=dex_number, name=name, rarity=rarity)
+    async def pokemon_add(self, interaction: discord.Interaction, dex_number: int, name: str, rarity: int, gif: str) -> None:
+        pokemon = PokemonModel(dex_number=dex_number, name=name, rarity=rarity, gif=gif)
         await self.database_manager.insert(pokemon)
         
         await interaction.response.send_message(f"Pokemon {name} added to the database")

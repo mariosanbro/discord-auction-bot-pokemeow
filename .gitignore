@@ -2,6 +2,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 .vscode/
+json/
 .env
 database_test.py
 database.db

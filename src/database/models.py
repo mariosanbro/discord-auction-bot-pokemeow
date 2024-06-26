@@ -10,6 +10,7 @@ class Pokemon(Base):
     dex_number: Mapped[int] = Column(Integer, nullable=False)
     name: Mapped[str] = Column(String, nullable=False)
     rarity: Mapped[int] = Column(Integer, nullable=False)
+    gif: Mapped[str] = Column(String, nullable=False)
     auctions: Mapped[list["Auction"]] = relationship("Auction", back_populates="pokemon")
 
 class Auction(Base):
