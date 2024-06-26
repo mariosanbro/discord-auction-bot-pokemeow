@@ -19,7 +19,7 @@ bot = commands.Bot(command_prefix='discord-auction-bot', intents=intents) # Pref
 tree = bot.tree
 
 extensions_folder = 'src.bot.extensions.'
-extensions = ['auction', 'pokemon']
+extensions = ['auction', 'pokemon', 'setup']
 
 async def main():
     if __name__ == "__main__":
@@ -40,6 +40,7 @@ TITLE = r"""
   \/____/ \/_/\/_____/\/_____/\/_____/\/_/ /_/\/____/     \/_/\/_/\/_____/\/_____/  \/_/ \/_/\/_____/\/_/ \/_/     \/_____/\/_____/  \/_/ 
                                                                                                                                           
 """
+MADEBY = "Made by Dragice"
 
 def clear():
     if os.name in ('nt', 'dos'):
@@ -51,7 +52,8 @@ def clear():
         
 def project():
     PROJECT = colorama.Style.RESET_ALL + colorama.Fore.CYAN + colorama.Style.BRIGHT + TITLE + colorama.Style.RESET_ALL + "\n"
-    print(PROJECT)
+    MADEBY = colorama.Fore.LIGHTGREEN_EX + colorama.Style.BRIGHT + "Made by Dragice" + colorama.Style.RESET_ALL + "\n"
+    print(PROJECT + MADEBY)
     
 @bot.event
 async def setup_hook():
