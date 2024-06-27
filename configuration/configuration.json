@@ -1,4 +1,22 @@
 {
+    "setup": false,
     "emojis": {},
-    "reputation": false
+    "colors": {
+        "common": "#0445ec",
+        "uncommon": "#14d7f4",
+        "rare": "#fca30c",
+        "superrare": "#fcf404",
+        "legendary": "#d118fb",
+        "shiny": "#fcbcf7",
+        "form": "#d1bbc0",
+        "shinyform": "#04fc82",
+        "gigantamax": "#ca2661",
+        "golden": "#eccb04"
+    },
+    "reputation": false,
+    "auctions_category": 0,
+    "auction_info_category": 0,
+    "trading_category": 0,
+    "ongoing_channel": 0,
+    "completed_channel": 0
 }
