@@ -1,5 +1,6 @@
 import discord
 import json
+from configuration.configuration import load_config, save_config
 from discord.ext import commands
 
 
@@ -8,11 +9,15 @@ NUMBER_EMOJIS = 10
 class Setup(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self.config = load_config()
 
     @discord.app_commands.command(name='setup', description='Setup the bot (it will add custom emojis and roles to the server)')
     @discord.app_commands.default_permissions(administrator=True)
     @discord.app_commands.describe(
-        reputation = 'Do you want to setup the reputation system? (This will set up some custom roles for the reputation system, this can be toggled on/off later)'
+        reputation = 'Do you want to setup the reputation system? (This will set up some custom roles for the reputation system, this can be toggled on/off later) | WIP',
+        auctions = 'The category where the auctions will be created (This can be changed later)',
+        auction_info = 'The category where everything related to the auctions will be stored (This can be changed later) | WIP',
+        trading = 'The category where the trading channels will be created (This can be changed later) | WIP'
     )
     @discord.app_commands.choices(
         reputation = [
@@ -20,7 +25,13 @@ class Setup(commands.Cog):
             discord.app_commands.Choice[int](name='No', value=0)
         ]
     )
-    async def setup(self, interaction: discord.Interaction, reputation: int) -> None:
+    async def setup(self, interaction: discord.Interaction, reputation: int, auctions: discord.CategoryChannel, auction_info: discord.CategoryChannel, trading: discord.CategoryChannel) -> None:
+        """
+        Sets up the bot by adding custom emojis and roles to the server, selecting categories and creating channels for auctions and trading, and optionally setting up the reputation system.
+
+        Example Usage:
+        /setup reputation:1 auctions:#auctions-category auction_info:#auction-info-category trading:#trading-category
+        """
         common_emoji_uri: str = './res/emojis/common.png'
         uncommon_emoji_uri: str = './res/emojis/uncommon.png'
         rare_emoji_uri: str = './res/emojis/rare.png'
@@ -31,6 +42,8 @@ class Setup(commands.Cog):
         shiny_form_emoji_uri: str = './res/emojis/shinyform.png'
         gigantamax_emoji_uri: str = './res/emojis/gigantamax.png'
         golden_emoji_uri: str = './res/emojis/golden.png'
+        pokecoins_emoji_uri: str = './res/emojis/pokecoins.png'
+        patreon_tokens_emoji_uri: str = './res/emojis/patreontokens.png'
         emoji_list: list[bytes] = []
         emoji_dict: dict[str, str] = {}
         with open(common_emoji_uri, 'rb') as common_emoji:
@@ -63,6 +76,12 @@ class Setup(commands.Cog):
         with open(golden_emoji_uri, 'rb') as golden_emoji:
             golden_emoji_bytes = golden_emoji.read()
             emoji_list.append(golden_emoji_bytes)
+        with open(pokecoins_emoji_uri, 'rb') as pokecoins_emoji:
+            pokecoins_emoji_bytes = pokecoins_emoji.read()
+            emoji_list.append(pokecoins_emoji_bytes)
+        with open(patreon_tokens_emoji_uri, 'rb') as patreon_tokens_emoji:
+            patreon_tokens_emoji_bytes = patreon_tokens_emoji.read()
+            emoji_list.append(patreon_tokens_emoji_bytes)
         
         await interaction.response.send_message("Setting up the bot...")
         guild: discord.Guild = interaction.guild
@@ -95,21 +114,33 @@ class Setup(commands.Cog):
                     emoji_name = 'gigantamax'
                 case 9:
                     emoji_name = 'golden'
+                case 10:
+                    emoji_name = 'pokecoins'
+                case 11:
+                    emoji_name = 'patreontokens'
                 case _:
                     emoji_name = 'unknown'
             emoji: discord.Emoji = await guild.create_custom_emoji(name=emoji_name, image=emoji_bytes)
             emoji_string: str = f'<:{emoji_name}:{emoji.id}>'
             emoji_dict[emoji_name] = emoji_string
             
-        # Save custom emojis in configuration file
-        with open('./configuration/configuration.json', 'r') as config_file:
-            config: dict = json.load(config_file)
-            config['emojis'] = emoji_dict
-        with open('./configuration/configuration.json', 'w') as config_file:
-            json.dump(config, config_file, indent=4)
+        # Save custom emojis and auctions categories in config file
+        self.config['emojis'] = emoji_dict
+        self.config['auctions_category'] = auctions.id
+        self.config['auction_info_category'] = auction_info.id
+        
+        # Create channels in auction info category (will be able to change the name from channels later)
+        ongoing_channel: discord.TextChannel = await guild.create_text_channel('ongoing-auctions', category=auction_info)
+        completed_channel: discord.TextChannel = await guild.create_text_channel('completed-auctions', category=auction_info)
+        self.config['ongoing_channel'] = ongoing_channel.id
+        self.config['completed_channel'] = completed_channel.id
+        
+        # Save and load config file
+        save_config(self.config)
+        self.config = load_config()
 
         # Add custom roles
-        # TODO: This will be a future feature (reputation system with roles, this will be able to be toggled on/off)
+        # TODO: This will be a future feature (reputation system with roles, this will be able to be toggled on/off) | WIP
         await interaction.edit_original_response(content="Bot setup complete!")
 
 async def setup(bot: commands.Bot) -> None:
