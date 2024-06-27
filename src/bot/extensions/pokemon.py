@@ -9,22 +9,21 @@ class Pokemon(commands.Cog):
         self.bot = bot
         self.database_manager = get_database_manager()
         
-    POKEMON = discord.app_commands.Group(name="pokemon", description="Pokemon related commands")
+    POKEMON = discord.app_commands.Group(name='pokemon', description='Pokemon related commands')
         
-    @POKEMON.command(name="add", description="Add a pokemon to the database")
+    @POKEMON.command(name='add', description='Add a pokemon to the database')
     @discord.app_commands.choices(
         rarity = [
-            discord.app_commands.Choice[int](name="Common", value=1),
-            discord.app_commands.Choice[int](name="Uncommon", value=2),
-            discord.app_commands.Choice[int](name="Rare", value=3),
-            discord.app_commands.Choice[int](name="Super Rare", value=4),
-            discord.app_commands.Choice[int](name="Legendary", value=6),
-            discord.app_commands.Choice[int](name="Shiny", value=8),
-            discord.app_commands.Choice[int](name="Form (Mega or Form)", value=10),
-            discord.app_commands.Choice[int](name="Shiny Form (Mega or Form)", value=11),
-            discord.app_commands.Choice[int](name="Gigantamax", value=12),
-            discord.app_commands.Choice[int](name="Shiny Gigantamax", value=13),
-            discord.app_commands.Choice[int](name="Golden", value=14),
+            discord.app_commands.Choice[int](name='Common', value=1),
+            discord.app_commands.Choice[int](name='Uncommon', value=2),
+            discord.app_commands.Choice[int](name='Rare', value=3),
+            discord.app_commands.Choice[int](name='Super Rare', value=4),
+            discord.app_commands.Choice[int](name='Legendary', value=5),
+            discord.app_commands.Choice[int](name='Shiny', value=6),
+            discord.app_commands.Choice[int](name='Form (Mega or Form)', value=7),
+            discord.app_commands.Choice[int](name='Shiny Form (Mega or Form)', value=8),
+            discord.app_commands.Choice[int](name='Gigantamax', value=9),
+            discord.app_commands.Choice[int](name='Golden', value=10),
             ]
         )
     async def pokemon_add(self, interaction: discord.Interaction, dex_number: int, name: str, rarity: int, gif: str) -> None:
