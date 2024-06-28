@@ -8,8 +8,9 @@ class Pokemon(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.database_manager = get_database_manager()
-        
-    POKEMON = discord.app_commands.Group(name='pokemon', description='Pokemon related commands')
+    
+    pokemon_permissions = discord.Permissions(administrator=True)
+    POKEMON = discord.app_commands.Group(name='pokemon', description='Pokemon related commands', default_permissions=pokemon_permissions)
         
     @POKEMON.command(name='add', description='Add a pokemon to the database')
     @discord.app_commands.choices(
