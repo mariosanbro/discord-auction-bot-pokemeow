@@ -18,6 +18,7 @@ class Auction(Base):
     
     id: Mapped[int | None] = Column(Integer, primary_key=True, autoincrement=True, index=True)
     channel_id: Mapped[int] = Column(Integer, nullable=False)
+    ongoing_message_id: Mapped[int] = Column(Integer, nullable=False)
     user_id: Mapped[int] = Column(Integer, nullable=False)
     current_bid: Mapped[int] = Column(Integer, nullable=False, default=0)
     bidder_id: Mapped[int | None] = Column(Integer)
