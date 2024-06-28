@@ -128,6 +128,7 @@ class Setup(commands.Cog):
         self.config['emojis'] = emoji_dict
         self.config['auctions_category'] = auctions.id
         self.config['auction_info_category'] = auction_info.id
+        self.config['trading_category'] = trading.id
         
         # Create channels in auction info category (will be able to change the name from channels later)
         ongoing_channel: discord.TextChannel = await guild.create_text_channel('ongoing-auctions', category=auction_info)
