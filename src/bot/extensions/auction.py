@@ -30,22 +30,46 @@ def auction_embed_builder(interaction: discord.Interaction, pokemon: PokemonMode
     embed.set_image(url=pokemon.gif)
     return embed
 
-def ended_auction_embed_builder(bot: commands.Bot, pokemon: PokemonModel, auction: AuctionModel, embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str) -> discord.Embed:
+def ended_auction_embed_builder(pokemon: PokemonModel, auction: AuctionModel, embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str, bot: commands.Bot | None = None, interaction: discord.Interaction | None = None) -> discord.Embed:
+    bot_or_interaction_guild: commands.Bot | discord.Interaction = bot if bot is not None else interaction.guild
+    
     embed: discord.Embed = discord.Embed(
         title=f"{rarity_emoji} {pokemon.name} | {formatted_rarity}",
         description=f"- Rarity: **{formatted_rarity}**\n- Dex Number: **{pokemon.dex_number}**",
         color=embed_color
     )
     embed.add_field(name="Final Bid", value=f"{pokecoins_emoji} {auction.current_bid:,}")
-    embed.add_field(name="Bidder", value=f"{bot.get_user(auction.bidder_id).mention if auction.bidder_id != None else 'None'}")
+    embed.add_field(name="Bidder", value=f"{bot_or_interaction_guild.get_user(auction.bidder_id).mention if auction.bidder_id != None else 'None'}")
     embed.add_field(name="⠀", value="⠀")
     embed.add_field(name="Bundle", value=":white_check_mark:" if auction.bundle else ":x:")
     embed.add_field(name="Accepted", value=":white_check_mark:" if auction.accepted else ":x:")
     embed.add_field(name="⠀", value="⠀")
     embed.add_field(name="Auction Ended", value=f"<t:{auction.end_time}:R>")
-    embed.add_field(name="Auction Host", value=f"{bot.get_user(auction.user_id).mention if auction.user_id != None else 'None'}")
+    embed.add_field(name="Auction Host", value=f"{bot_or_interaction_guild.get_user(auction.user_id).mention if auction.user_id != None else 'None'}")
     embed.set_image(url=pokemon.gif)
     return embed
+
+async def end_auction(config: dict, interaction: discord.Interaction, auction: AuctionModel, embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str) -> None:
+    database_manager = get_database_manager()
+    auction.ended = True
+    updated: bool = await database_manager.update(auction, id=auction.id)
+    if not updated:
+        print(f"An error occurred while updating the auction with id {auction.id}")
+        return
+    
+    # Auction channels
+    completed_channel_id: int = config['completed_channel']
+    ongoing_channel_id: int = config['ongoing_channel']
+    completed_channel: discord.TextChannel = interaction.guild.get_channel(completed_channel_id)
+    ongoing_channel: discord.TextChannel = interaction.guild.get_channel(ongoing_channel_id)
+    auction_channel: discord.TextChannel = interaction.guild.get_channel(auction.channel_id)
+    
+    # Send the completed message, delete the ongoing message and the auction channel
+    completed_embed: discord.Embed = ended_auction_embed_builder(auction.pokemon, auction, embed_color, formatted_rarity, rarity_emoji, pokecoins_emoji, interaction=interaction)
+    await completed_channel.send(embed=completed_embed)
+    ongoing_message: discord.Message = await ongoing_channel.fetch_message(auction.ongoing_message_id)
+    await ongoing_message.delete()
+    await auction_channel.delete()
     
 class AuctionView(discord.ui.View):
     def __init__(self, *, auction: AuctionModel, embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str, auction_message: discord.Message | None = None):
@@ -163,9 +187,16 @@ class BidModal(discord.ui.Modal):
             return
         if auction.auto_buy is not None:
             if new_bid >= auction.auto_buy:
-                pass # TODO: Auto buy logic here
+                pass
 
         has_previous_bidder: bool = auction.bidder_id is not None
+        
+        if not has_previous_bidder:
+            await interaction.response.send_message(f"{interaction.user.mention}, you have successfully bid {new_bid:,} pokecoins on the auction!", delete_after=10)
+        else:
+            previous_bidder: discord.User = interaction.guild.get_member(auction.bidder_id)
+            await interaction.response.send_message(f"{interaction.user.mention}, you have successfully outbid {previous_bidder.mention} with {new_bid:,} pokecoins!", delete_after=10)
+        
         auction.current_bid = new_bid
         auction.bidder_id = interaction.user.id
         updated: bool = await self.database_manager.update(auction, id=auction.id)
@@ -173,14 +204,8 @@ class BidModal(discord.ui.Modal):
             await interaction.response.send_message("An error occurred while updating the auction!", ephemeral=True)
             return
         
-        if not has_previous_bidder:
-            await interaction.response.send_message(f"{interaction.user.mention}, you have successfully bid {new_bid:,} pokecoins on the auction!", delete_after=10)
-        else:
-            previous_bidder: discord.User = interaction.guild.get_member(auction.bidder_id)
-            await interaction.response.send_message(f"{interaction.user.mention}, you have successfully outbid {previous_bidder.mention} with {new_bid:,} pokecoins!", delete_after=10)
         auction_embed: discord.Embed = auction_embed_builder(interaction, auction.pokemon, auction, self.embed_color, self.formatted_rarity, self.rarity_emoji, self.pokecoins_emoji)
         await self.auction_message.edit(content=CONTENT_AUCTION_MESSAGE, embed=auction_embed, view=AuctionView(auction=auction, embed_color=self.embed_color, formatted_rarity=self.formatted_rarity, rarity_emoji=self.rarity_emoji, pokecoins_emoji=self.pokecoins_emoji, auction_message=self.auction_message))
-
 
 class Auction(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -221,8 +246,8 @@ class Auction(commands.Cog):
                 auction_channel: discord.TextChannel = self.bot.get_channel(auction.channel_id)
                 
                 # Send the completed message, delete the ongoing message and the auction channel
-                completed_embed: discord.Embed = ended_auction_embed_builder(self.bot, auction.pokemon, auction, embed_color, formatted_rarity, rarity_emoji, pokecoins_emoji)
-                await completed_channel.send(content="", embed=completed_embed)
+                completed_embed: discord.Embed = ended_auction_embed_builder(auction.pokemon, auction, embed_color, formatted_rarity, rarity_emoji, pokecoins_emoji, bot=self.bot)
+                await completed_channel.send(embed=completed_embed)
                 ongoing_message: discord.Message = await ongoing_channel.fetch_message(auction.ongoing_message_id)
                 await ongoing_message.delete()
                 await auction_channel.delete()
@@ -235,6 +260,7 @@ class Auction(commands.Cog):
     @discord.app_commands.command(name='auction', description='Start an auction')
     @discord.app_commands.choices(
         runtime = [
+            discord.app_commands.Choice[int](name='1 Minute', value=60), # Tests
             discord.app_commands.Choice[int](name='30 Minutes', value=1800),
             discord.app_commands.Choice[int](name='45 Minutes', value=2700),
             discord.app_commands.Choice[int](name='1 Hour', value=3600),
