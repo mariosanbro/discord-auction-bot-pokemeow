@@ -41,6 +41,7 @@ class Setup(commands.Cog):
         form_emoji_uri: str = './res/emojis/form.png'
         shiny_form_emoji_uri: str = './res/emojis/shinyform.png'
         gigantamax_emoji_uri: str = './res/emojis/gigantamax.png'
+        shiny_gigantamax_emoji_uri: str = './res/emojis/shinygigantamax.png'
         golden_emoji_uri: str = './res/emojis/golden.png'
         pokecoins_emoji_uri: str = './res/emojis/pokecoins.png'
         patreon_tokens_emoji_uri: str = './res/emojis/patreontokens.png'
@@ -73,6 +74,9 @@ class Setup(commands.Cog):
         with open(gigantamax_emoji_uri, 'rb') as gigantamax_emoji:
             gigantamax_emoji_bytes = gigantamax_emoji.read()
             emoji_list.append(gigantamax_emoji_bytes)
+        with open(shiny_gigantamax_emoji_uri, 'rb') as shiny_gigantamax_emoji:
+            shiny_gigantamax_emoji_bytes = shiny_gigantamax_emoji.read()
+            emoji_list.append(shiny_gigantamax_emoji_bytes)
         with open(golden_emoji_uri, 'rb') as golden_emoji:
             golden_emoji_bytes = golden_emoji.read()
             emoji_list.append(golden_emoji_bytes)
@@ -113,10 +117,12 @@ class Setup(commands.Cog):
                 case 8:
                     emoji_name = 'gigantamax'
                 case 9:
-                    emoji_name = 'golden'
+                    emoji_name = 'shinygigantamax'
                 case 10:
-                    emoji_name = 'pokecoins'
+                    emoji_name = 'golden'
                 case 11:
+                    emoji_name = 'pokecoins'
+                case 12:
                     emoji_name = 'patreontokens'
                 case _:
                     emoji_name = 'unknown'

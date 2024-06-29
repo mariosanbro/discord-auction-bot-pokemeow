@@ -24,6 +24,8 @@ def rarity_to_string(rarity: int) -> str:
         case 9:
             return 'gigantamax'
         case 10:
+            return 'shinygigantamax'
+        case 11:
             return 'golden'
         case _:
             return 'unknown'
@@ -49,6 +51,8 @@ def rarity_to_formatted_string(rarity: int) -> str:
         case 9:
             return 'Gigantamax'
         case 10:
+            return 'Shiny Gigantamax'
+        case 11:
             return 'Golden'
         case _:
             return 'Unknown'
@@ -73,7 +77,9 @@ def rarity_to_int(rarity: str) -> int:
             return 8
         case 'gigantamax':
             return 9
-        case 'golden':
+        case 'shinygigantamax':
             return 10
+        case 'golden':
+            return 11
         case _:
             return -1
