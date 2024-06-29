@@ -12,9 +12,11 @@ Feel free to add a star :star: to the repository if you liked it!
 
 
 # Roadmap
-- [ ] Basic auction system (auction and bid)
-- [ ] Bundle auction
-- [ ] Accepted in auction (for different bid methods)
+- [x] Basic auction system (auction and bid).
+- [x] Autobuy auction.
+- [ ] Bundle auction.
+- [ ] Trading setup after auction ending.
+- [ ] Accepted in auction (for different bid methods).
 
 More to come...
 
@@ -25,7 +27,7 @@ In order to install and have the bot ready first you have to download it (I reco
 Before diving into the installation process, you'll need:
 
 - Python 3.10 or later installed on your machine (3.11+ recommended)
-- All the necessary dependencies listed in requirements.txt.
+- All the necessary dependencies listed in [requirements.txt](https://github.com/mariosanbro/discord-auction-bot/blob/main/requirements.txt).
 
 To install these requirements, run the following commands once you installed Python:
 ```py

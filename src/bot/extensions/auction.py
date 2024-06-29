@@ -21,7 +21,7 @@ def auction_embed_builder(interaction: discord.Interaction, pokemon: PokemonMode
     )
     embed.add_field(name="Current Bid", value=f"{pokecoins_emoji} {current_bid:,}")
     embed.add_field(name="Bidder", value=f"{interaction.guild.get_member(auction.bidder_id).mention if auction.bidder_id != None else 'None'}")
-    embed.add_field(name="Auto Buy", value=f"{pokecoins_emoji} {auction.auto_buy}")
+    embed.add_field(name="Auto Buy", value=f"{pokecoins_emoji} {auction.auto_buy:,}")
     embed.add_field(name="Bundle", value=":white_check_mark:" if auction.bundle else ":x:")
     embed.add_field(name="Accepted", value=":white_check_mark:" if auction.accepted else ":x:")
     embed.add_field(name="⠀", value="⠀")
@@ -39,13 +39,18 @@ def ended_auction_embed_builder(pokemon: PokemonModel, auction: AuctionModel, em
         color=embed_color
     )
     embed.add_field(name="Final Bid", value=f"{pokecoins_emoji} {auction.current_bid:,}")
-    embed.add_field(name="Bidder", value=f"{bot_or_interaction_guild.get_user(auction.bidder_id).mention if auction.bidder_id != None else 'None'}")
+    if auction.bidder_id is not None:
+        bidder: discord.User | discord.Member = bot_or_interaction_guild.get_user(auction.bidder_id) if isinstance(bot_or_interaction_guild, commands.Bot) else bot_or_interaction_guild.get_member(auction.bidder_id)
+    else:
+        bidder = None
+    embed.add_field(name="Bidder", value=f"{bidder.mention if bidder is not None else 'None'}")
     embed.add_field(name="⠀", value="⠀")
     embed.add_field(name="Bundle", value=":white_check_mark:" if auction.bundle else ":x:")
     embed.add_field(name="Accepted", value=":white_check_mark:" if auction.accepted else ":x:")
     embed.add_field(name="⠀", value="⠀")
     embed.add_field(name="Auction Ended", value=f"<t:{auction.end_time}:R>")
-    embed.add_field(name="Auction Host", value=f"{bot_or_interaction_guild.get_user(auction.user_id).mention if auction.user_id != None else 'None'}")
+    user: discord.User | discord.Member = bot_or_interaction_guild.get_user(auction.user_id) if isinstance(bot_or_interaction_guild, commands.Bot) else bot_or_interaction_guild.get_member(auction.user_id)
+    embed.add_field(name="Auction Host", value=f"{user.mention if user is not None else 'None'}")
     embed.set_image(url=pokemon.gif)
     return embed
 
@@ -157,6 +162,7 @@ class BidModal(discord.ui.Modal):
         self.rarity_emoji: str = rarity_emoji
         self.pokecoins_emoji: str = pokecoins_emoji
         self.database_manager = get_database_manager()
+        self.config: dict = load_config()
         
     pokecoins: discord.TextInput = discord.ui.TextInput(
         label='Pokecoins',
@@ -187,7 +193,16 @@ class BidModal(discord.ui.Modal):
             return
         if auction.auto_buy is not None:
             if new_bid >= auction.auto_buy:
-                pass
+                new_bid = auction.auto_buy
+                auction.current_bid = new_bid
+                auction.bidder_id = interaction.user.id
+                updated: bool = await self.database_manager.update(auction, id=auction.id)
+                if not updated:
+                    await interaction.response.send_message("An error occurred while updating the auction!", ephemeral=True)
+                    return
+                await interaction.response.send_message(f"{interaction.user.mention}, you have successfully triggered the auto buy with {new_bid:,} pokecoins!", ephemeral=True)
+                await end_auction(self.config, interaction, auction, self.embed_color, self.formatted_rarity, self.rarity_emoji, self.pokecoins_emoji)
+                return
 
         has_previous_bidder: bool = auction.bidder_id is not None
         
@@ -283,7 +298,7 @@ class Auction(commands.Cog):
         runtime='The time the auction will last',
         bundle='Is the auction for a bundle? | WIP',
         accepted='Does the auction accept pokemon? | WIP',
-        autobuy='The price at which the auction will be automatically bought (Optional) | WIP'
+        autobuy='The price at which the auction will be automatically bought (Optional)'
     )
     async def auction(self, interaction: discord.Interaction, dex_number: int, runtime: int, bundle: int, accepted: int, autobuy: int | None = None) -> None:
         pokemon: PokemonModel = await self.database_manager.fetch_one(PokemonModel, dex_number=dex_number)
