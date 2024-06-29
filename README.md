@@ -1,5 +1,4 @@
 # discord-auction-bot
-
 This bot is an open source Discord bot coded in Python with [Discord.py](https://discordpy.readthedocs.io/en/stable/) by [mariosanbro](https://github.com/mariosanbro).
 Feel free to add a star :star: to the repository if you liked it!
 
@@ -13,7 +12,6 @@ Feel free to add a star :star: to the repository if you liked it!
 
 
 # Roadmap
-
 - [ ] Basic auction system (auction and bid)
 - [ ] Bundle auction
 - [ ] Accepted in auction (for different bid methods)
@@ -21,11 +19,9 @@ Feel free to add a star :star: to the repository if you liked it!
 More to come...
 
 # Installation
-
 In order to install and have the bot ready first you have to download it (I recommend to always download last version since it will have last features and bugfixes).
 
 ## Prerequisites
-
 Before diving into the installation process, you'll need:
 
 - Python 3.10 or later installed on your machine (3.11+ recommended)
@@ -41,7 +37,6 @@ pip install -r requirements.txt
 ```
 
 ## Have the bot running
-
 Once you have everything from the prerequisites done, you're ready to have the bot running.
 
 Go to [Discord Developers Portal](https://discord.com/developers/applications) and create a new application.
@@ -59,7 +54,6 @@ The last step to have the bot running is in the project directory run in the cmd
 Congratulations, the bot is ready to use and running.
 
 ## Setup server
-
 Now that the bot is running you only need to setup `auctions`, `auction info` and `trading` categories.
 
 Once you set them be sure that you have minimum 12 emoji slots free (since the next step will create emojis and channels in the server).
@@ -73,5 +67,4 @@ If you have any question feel free to join the discord server, I'll try to reply
 - [Discord Server](https://discord.gg/QVW53Wtpc4)
 
 # License
-
 Discord Auction Bot is licensed under the GPL 3.0 license. See the file `LICENSE` for more information. If you plan to use any part of this source code in your own bot, I would be grateful if you would include some form of credit somewhere.
