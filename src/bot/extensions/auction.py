@@ -196,6 +196,7 @@ class BidModal(discord.ui.Modal):
                 new_bid = auction.auto_buy
                 auction.current_bid = new_bid
                 auction.bidder_id = interaction.user.id
+                auction.end_time = int(datetime.datetime.now().timestamp())
                 updated: bool = await self.database_manager.update(auction, id=auction.id)
                 if not updated:
                     await interaction.response.send_message("An error occurred while updating the auction!", ephemeral=True)
