@@ -13,7 +13,10 @@ from discord.ext import commands, tasks
 CONTENT_AUCTION_MESSAGE: str = "- Roles to ping | WIP\n> Please use the buttons below to bid on the auction!\n\n- **Remember, you must own what you are bidding!**"
 
 def auction_embed_builder(interaction: discord.Interaction, pokemon: PokemonModel, auction: AuctionModel, embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str) -> discord.Embed:
-    current_bid = auction.current_bid if auction.current_bid is not None else 0
+    current_bid: int = auction.current_bid if auction.current_bid is not None else 0
+    autobuy: int | str = auction.auto_buy if auction.auto_buy is not None else 'None'
+    if isinstance(autobuy, int):
+        autobuy = f'{autobuy:,}'
     embed: discord.Embed = discord.Embed(
         title=f"{rarity_emoji} {pokemon.name} | {formatted_rarity}",
         description=f"- Rarity: **{formatted_rarity}**\n- Dex Number: **{pokemon.dex_number}**",
@@ -21,7 +24,7 @@ def auction_embed_builder(interaction: discord.Interaction, pokemon: PokemonMode
     )
     embed.add_field(name="Current Bid", value=f"{pokecoins_emoji} {current_bid:,}")
     embed.add_field(name="Bidder", value=f"{interaction.guild.get_member(auction.bidder_id).mention if auction.bidder_id != None else 'None'}")
-    embed.add_field(name="Auto Buy", value=f"{pokecoins_emoji} {auction.auto_buy:,}")
+    embed.add_field(name="Auto Buy", value=f"{pokecoins_emoji} {autobuy}")
     embed.add_field(name="Bundle", value=":white_check_mark:" if auction.bundle else ":x:")
     embed.add_field(name="Accepted", value=":white_check_mark:" if auction.accepted else ":x:")
     embed.add_field(name="⠀", value="⠀")

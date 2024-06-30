@@ -16,7 +16,7 @@ class Setup(commands.Cog):
     @discord.app_commands.describe(
         reputation = 'Do you want to setup the reputation system? (This will set up some custom roles for the reputation system, this can be toggled on/off later) | WIP',
         auctions = 'The category where the auctions will be created (This can be changed later)',
-        auction_info = 'The category where everything related to the auctions will be stored (This can be changed later) | WIP',
+        auction_info = 'The category where everything related to the auctions will be stored (This can be changed later)',
         trading = 'The category where the trading channels will be created (This can be changed later) | WIP'
     )
     @discord.app_commands.choices(
