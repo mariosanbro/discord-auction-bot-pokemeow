@@ -14,7 +14,7 @@ Feel free to add a star :star: to the repository if you liked it!
 # Roadmap
 - [x] Basic auction system (auction and bid).
 - [x] Autobuy auction.
-- [ ] Bundle auction.
+- [x] Bundle auction.
 - [ ] Trading setup after auction ending.
 - [ ] Accepted in auction (for different bid methods).
 
