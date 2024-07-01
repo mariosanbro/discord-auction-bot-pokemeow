@@ -22,7 +22,13 @@ class DatabaseManager:
             
     async def fetch_all(self, model: Type[DeclarativeMeta], **kwargs) -> list[DeclarativeMeta]:
         async with self.async_session() as session:
-            query = select(model).options(joinedload('*')).filter_by(**kwargs)
+            query = select(model).options(joinedload('*'))
+            for key, value in kwargs.items():
+                column = getattr(model, key)
+                if isinstance(value, list):
+                    query = query.where(column.in_(value))
+                else:
+                    query = query.where(column == value)
             result = await session.execute(query)
             return result.scalars().unique().all()
     
