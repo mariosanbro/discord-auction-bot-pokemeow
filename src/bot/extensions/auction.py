@@ -2,6 +2,7 @@ from discord.utils import MISSING
 from ...database.database import get_database_manager
 from ...database.models import Auction as AuctionModel
 from ...database.models import Pokemon as PokemonModel
+from ...database.models import AuctionPokemon as AuctionPokemonModel
 from configuration.configuration import load_config
 from configuration.utils import hex_to_int, rarity_to_string, rarity_to_formatted_string
 import asyncio
@@ -12,6 +13,8 @@ from discord.ext import commands, tasks
 
 CONTENT_AUCTION_MESSAGE: str = "- Roles to ping | WIP\n> Please use the buttons below to bid on the auction!\n\n- **Remember, you must own what you are bidding!**"
 BUNDLE_IMAGE: str = 'https://cdn.discordapp.com/attachments/1256251099858337846/1257322212705439775/bundle.png?ex=6683fc0f&is=6682aa8f&hm=f968feee9546b5bd636f6f96ffbfeee69036cb69f954ac739d04da585a260025&'
+POKEMON_SEPARATOR: str = ','
+QUANTITY_SEPARATOR: str = '-'
 
 def auction_embed_builder(interaction: discord.Interaction, auction: AuctionModel, embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str) -> discord.Embed:
     current_bid: int = auction.current_bid if auction.current_bid is not None else 0
@@ -19,7 +22,7 @@ def auction_embed_builder(interaction: discord.Interaction, auction: AuctionMode
     if isinstance(autobuy, int):
         autobuy = f'{autobuy:,}'
     if not auction.bundle:
-        pokemon: PokemonModel = auction.pokemon[0]
+        pokemon: PokemonModel = auction.auction_pokemon[0].pokemon
         embed: discord.Embed = discord.Embed(
             title=f"{rarity_emoji} {pokemon.name} | {formatted_rarity}",
             description=f"- Rarity: **{formatted_rarity}**\n- Dex Number: **{pokemon.dex_number}**",
@@ -28,9 +31,9 @@ def auction_embed_builder(interaction: discord.Interaction, auction: AuctionMode
         embed.add_field(name="Current Bid", value=f"{pokecoins_emoji} {current_bid:,}")
         embed.add_field(name="Bidder", value=f"{interaction.guild.get_member(auction.bidder_id).mention if auction.bidder_id != None else 'None'}")
         embed.add_field(name="Auto Buy", value=f"{pokecoins_emoji} {autobuy}")
+        embed.add_field(name="Quantity", value=f"{auction.auction_pokemon[0].quantity}")
         embed.add_field(name="Bundle", value=":white_check_mark:" if auction.bundle else ":x:")
         embed.add_field(name="Accepted", value=":white_check_mark:" if auction.accepted else ":x:")
-        embed.add_field(name="⠀", value="⠀")
         embed.add_field(name="End Time", value=f"<t:{auction.end_time}:R>")
         embed.add_field(name="Auction Host", value=f"{interaction.guild.get_member(auction.user_id).mention if auction.user_id != None else 'None'}")
         embed.set_image(url=pokemon.gif)
@@ -58,7 +61,7 @@ def ended_auction_embed_builder(auction: AuctionModel, embed_color: int, formatt
     else:
         bidder = None
     if not auction.bundle:
-        pokemon: PokemonModel = auction.pokemon[0]
+        pokemon: PokemonModel = auction.auction_pokemon[0].pokemon
         embed: discord.Embed = discord.Embed(
             title=f"{rarity_emoji} {pokemon.name} | {formatted_rarity}",
             description=f"- Rarity: **{formatted_rarity}**\n- Dex Number: **{pokemon.dex_number}**",
@@ -67,15 +70,15 @@ def ended_auction_embed_builder(auction: AuctionModel, embed_color: int, formatt
         embed.add_field(name="Final Bid", value=f"{pokecoins_emoji} {auction.current_bid:,}")
         embed.add_field(name="Bidder", value=f"{bidder.mention if bidder is not None else 'None'}")
         embed.add_field(name="⠀", value="⠀")
+        embed.add_field(name="Quantity", value=f"{auction.auction_pokemon[0].quantity}")
         embed.add_field(name="Bundle", value=":white_check_mark:" if auction.bundle else ":x:")
         embed.add_field(name="Accepted", value=":white_check_mark:" if auction.accepted else ":x:")
-        embed.add_field(name="⠀", value="⠀")
         embed.add_field(name="Auction Ended", value=f"<t:{auction.end_time}:R>")
         user: discord.User | discord.Member = bot_or_interaction_guild.get_user(auction.user_id) if isinstance(bot_or_interaction_guild, commands.Bot) else bot_or_interaction_guild.get_member(auction.user_id)
         embed.add_field(name="Auction Host", value=f"{user.mention if user is not None else 'None'}")
         embed.set_image(url=pokemon.gif)
     else:
-        pokemon: PokemonModel = auction.pokemon[0]
+        pokemon: PokemonModel = auction.auction_pokemon[0].pokemon
         embed: discord.Embed = discord.Embed(
             title=f"{rarity_emoji} Bundle | {formatted_rarity}",
             description=f"- Rarity: **{formatted_rarity}**",
@@ -95,10 +98,10 @@ def ended_auction_embed_builder(auction: AuctionModel, embed_color: int, formatt
 
 def new_auction_embed_builder(auction: AuctionModel, embed_color: int, formatted_rarity: str, user: discord.User, channel: discord.TextChannel) -> discord.Embed:
     if not auction.bundle:
-        pokemon: PokemonModel = auction.pokemon[0]
+        pokemon: PokemonModel = auction.auction_pokemon[0].pokemon
         embed: discord.Embed = discord.Embed(
             title=":wrench: | New Auction Started!",
-            description=f"{user.mention} has started an auction for Pokemon {pokemon.name}\n**Dex Number:** {pokemon.dex_number}\n**Name:** {pokemon.name}\n**Rarity:** {formatted_rarity}\n\n- Auction Information:\n - Bundle: {':white_check_mark:' if auction.bundle else ':x:'}\n - Accepted Pokemon: {':white_check_mark:' if auction.accepted else ':x:'}\n\n> **Auction will end <t:{auction.end_time}:R>**\n\n**Channel:** {channel.mention}",
+            description=f"{user.mention} has started an auction for Pokemon {pokemon.name}\n**Dex Number:** {pokemon.dex_number}\n**Name:** {pokemon.name}\n**Quantity:** {auction.auction_pokemon[0].quantity}\n**Rarity:** {formatted_rarity}\n\n- Auction Information:\n - Bundle: {':white_check_mark:' if auction.bundle else ':x:'}\n - Accepted Pokemon: {':white_check_mark:' if auction.accepted else ':x:'}\n\n> **Auction will end <t:{auction.end_time}:R>**\n\n**Channel:** {channel.mention}",
             color=embed_color
         )
         embed.set_image(url=pokemon.gif)
@@ -116,7 +119,7 @@ def confirmed_embed_builder(pokemon: list[PokemonModel], auction: AuctionModel, 
         pokemon: PokemonModel = pokemon[0]
         embed: discord.Embed = discord.Embed(
             title=":wrench: | Confirm Auction",
-            description=f"Are you sure you want to start an auction for Pokemon {pokemon.name}?\n**Dex Number:** {pokemon.dex_number}\n**Name:** {pokemon.name}\n**Rarity:** {formatted_rarity}\n\n- Auction Information:\n - Bundle: **{'Yes' if bundle else 'No'}**\n - Accepted Pokemon: **{'Yes' if accepted else 'No'}**\n\n> **Auction will end <t:{auction.end_time}:R>**\n\n- Use the buttons below to confirm or cancel the auction.\n\n> **Remember, you must own the pokemon you are auctioning!**",
+            description=f"Are you sure you want to start an auction for Pokemon {pokemon.name}?\n**Dex Number:** {pokemon.dex_number}\n**Name:** {pokemon.name}\n**Quantity:** {auction.auction_pokemon[0].quantity}\n**Rarity:** {formatted_rarity}\n\n- Auction Information:\n - Bundle: **{'Yes' if bundle else 'No'}**\n - Accepted Pokemon: **{'Yes' if accepted else 'No'}**\n\n> **Auction will end <t:{auction.end_time}:R>**\n\n- Use the buttons below to confirm or cancel the auction.\n\n> **Remember, you must own the pokemon you are auctioning!**",
             color=embed_color
         )
         embed.set_image(url=pokemon.gif)
@@ -179,8 +182,8 @@ class AuctionView(discord.ui.View):
     @discord.ui.button(label='Bundle', style=discord.ButtonStyle.secondary)
     async def bundle_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         pokemon_info = [
-            f"- Dex Number: {pokemon.dex_number}\n- Name: {pokemon.name}\n\n"
-            for pokemon in self.auction.pokemon
+            f"- Dex Number: {auction_pokemon.pokemon.dex_number}\n- Name: {auction_pokemon.pokemon.name}\n- Quantity: {auction_pokemon.quantity}\n\n"
+            for auction_pokemon in self.auction.auction_pokemon
         ]
         message = f"**Bundle Information**\n\n{''.join(pokemon_info)}"
         await interaction.response.send_message(message, ephemeral=True)
@@ -334,9 +337,9 @@ class Auction(commands.Cog):
                     continue
                 
                 # Information for the embed
-                rarity_string: str = rarity_to_string(auction.pokemon.rarity)
+                rarity_string: str = rarity_to_string(auction.auction_pokemon[0].pokemon.rarity)
                 embed_color: int = hex_to_int(self.config['colors'][rarity_string])
-                formatted_rarity: str = rarity_to_formatted_string(auction.pokemon.rarity)
+                formatted_rarity: str = rarity_to_formatted_string(auction.auction_pokemon[0].pokemon.rarity)
                 rarity_emoji: str = self.config['emojis'][rarity_string]
                 pokecoins_emoji: str = self.config['emojis']['pokecoins']
                 
@@ -377,20 +380,29 @@ class Auction(commands.Cog):
         ]
     )
     @discord.app_commands.describe(
-        dex_number='The dex number of the pokemon you want to auction (if bundle separate by commas)',
+        dex_number=f'The dex number of the pokemon you want to auction (format: dex_number{QUANTITY_SEPARATOR}quantity (if no quantity, default is 1), if bundle separate by commas)',
         runtime='The time the auction will last',
         accepted='Does the auction accept pokemon? | WIP',
         autobuy='The price at which the auction will be automatically bought (Optional)'
     )
     async def auction(self, interaction: discord.Interaction, dex_number: str, runtime: int, accepted: int, autobuy: int | None = None) -> None:
-        dex_number_list: list[str] = dex_number.split(',')
-        bundle: bool = len(dex_number_list) > 1
-        
+        dex_number = dex_number.replace(' ', '')
+        dex_number_list: list[str] = dex_number.split(POKEMON_SEPARATOR)
         try:
-            dex_numbers: list[int] = [int(dex) for dex in dex_number_list]
+            dex_number_dict: list[dict[str, int]] = [
+                {
+                    'dex_number': int(dex.split(QUANTITY_SEPARATOR)[0]),
+                    'quantity': int(dex.split(QUANTITY_SEPARATOR)[1]) if len(dex.split(QUANTITY_SEPARATOR)) > 1 else 1
+                }
+                for dex in dex_number_list
+            ]
+            dex_number_dict.sort(key=lambda x: x['dex_number'])
         except ValueError:
             await interaction.response.send_message("Invalid dex number, please enter a valid number!", ephemeral=True)
             return
+        dex_numbers: list[int] = [dex.get('dex_number', -1) for dex in dex_number_dict]
+        quantities: list[int] = [dex.get('quantity', 1) for dex in dex_number_dict]
+        bundle: bool = len(dex_numbers) > 1
         
         pokemon: list[PokemonModel] = await self.database_manager.fetch_all(PokemonModel, dex_number=dex_numbers)
         if len(pokemon) == 0:
@@ -398,7 +410,22 @@ class Auction(commands.Cog):
             return
         auction_creation_time: int = int(datetime.datetime.now().timestamp())
         auction_end_time: int = auction_creation_time + runtime
-        auction: AuctionModel =  AuctionModel(user_id=interaction.user.id, end_time=auction_end_time, ended=False, bundle=bundle, accepted=bool(accepted), auto_buy=autobuy, pokemon=pokemon)
+        auction_pokemon_list: list[AuctionPokemonModel] = [
+            AuctionPokemonModel(
+                pokemon=pokemon,
+                quantity=quantity
+            )
+            for pokemon, quantity in zip(pokemon, quantities)
+        ]
+        auction: AuctionModel =  AuctionModel(
+            user_id=interaction.user.id,
+            end_time=auction_end_time,
+            ended=False,
+            bundle=bundle,
+            accepted=bool(accepted),
+            auto_buy=autobuy,
+            auction_pokemon=auction_pokemon_list
+        )
         rarity: int = rarity_check(pokemon)
         if rarity == -1:
             await interaction.response.send_message("All pokemon must have the same rarity!", ephemeral=True)
