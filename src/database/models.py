@@ -3,12 +3,15 @@ from sqlalchemy.orm import declarative_base, relationship, Mapped
 
 Base = declarative_base()
 
-auction_pokemon = Table(
-    'auction_pokemon',
-    Base.metadata,
-    Column('auction_id', Integer, ForeignKey('auctions.id'), primary_key=True),
-    Column('pokemon_id', Integer, ForeignKey('pokemon.id'), primary_key=True)
-)
+class AuctionPokemon(Base):
+    __tablename__ = "auction_pokemon"
+    
+    auction_id: Mapped[int] = Column(Integer, ForeignKey('auctions.id'), primary_key=True)
+    pokemon_id: Mapped[int] = Column(Integer, ForeignKey('pokemon.id'), primary_key=True)
+    quantity: Mapped[int] = Column(Integer, nullable=False, default=1)
+    
+    auction: Mapped['Auction'] = relationship("Auction", back_populates='auction_pokemon')
+    pokemon: Mapped['Pokemon'] = relationship("Pokemon", back_populates='auction_pokemon')
 
 class Pokemon(Base):
     __tablename__ = "pokemon"
@@ -18,11 +21,7 @@ class Pokemon(Base):
     name: Mapped[str] = Column(String, nullable=False)
     rarity: Mapped[int] = Column(Integer, nullable=False)
     gif: Mapped[str] = Column(String, nullable=False)
-    auctions: Mapped[list['Auction']] = relationship(
-        "Auction",
-        secondary=auction_pokemon,
-        back_populates="pokemon"
-    )
+    auction_pokemon: Mapped[list[AuctionPokemon]] = relationship(back_populates='pokemon')
 
 class Auction(Base):
     __tablename__ = "auctions"
@@ -39,8 +38,4 @@ class Auction(Base):
     accepted_list: Mapped[list[int]] = Column(String, nullable=False, default="")
     bundle: Mapped[bool] = Column(Boolean, nullable=False, default=False)
     ended: Mapped[bool] = Column(Boolean, nullable=False, default=False)
-    pokemon: Mapped[list[Pokemon]] = relationship(
-        "Pokemon",
-        secondary=auction_pokemon,
-        back_populates="auctions"
-    )
+    auction_pokemon: Mapped[list[AuctionPokemon]] = relationship(back_populates='auction')
