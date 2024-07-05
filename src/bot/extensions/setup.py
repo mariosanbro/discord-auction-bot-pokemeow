@@ -91,7 +91,7 @@ class Setup(commands.Cog):
         guild: discord.Guild = interaction.guild
         
         # Check if there are enough emoji slots available
-        if guild.emoji_limit * 2 < len(guild.emojis) + NUMBER_EMOJIS:
+        if guild.emoji_limit < sum([1 for e in guild.emojis if not e.animated]) + NUMBER_EMOJIS:
             await interaction.edit_original_response(content="Not enough emoji slots available, please free up some slots and try again")
             return
         
