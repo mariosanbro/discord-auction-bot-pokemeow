@@ -4,7 +4,7 @@ from configuration.configuration import load_config, save_config
 from discord.ext import commands
 
 
-NUMBER_EMOJIS = 10
+NUMBER_EMOJIS: int = 13
 
 class Setup(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -91,7 +91,7 @@ class Setup(commands.Cog):
         guild: discord.Guild = interaction.guild
         
         # Check if there are enough emoji slots available
-        if guild.emoji_limit < len(guild.emojis) + NUMBER_EMOJIS:
+        if guild.emoji_limit * 2 < len(guild.emojis) + NUMBER_EMOJIS:
             await interaction.edit_original_response(content="Not enough emoji slots available, please free up some slots and try again")
             return
         
