@@ -3,8 +3,8 @@ from sqlalchemy.orm import declarative_base, relationship, Mapped
 
 Base = declarative_base()
 
-class AuctionPokemon(Base):
-    __tablename__ = "auction_pokemon"
+class AuctionBundle(Base):
+    __tablename__ = "auction_bundle"
     
     auction_id: Mapped[int] = Column(Integer, ForeignKey('auctions.id'), primary_key=True)
     pokemon_id: Mapped[int] = Column(Integer, ForeignKey('pokemon.id'), primary_key=True)
@@ -12,6 +12,17 @@ class AuctionPokemon(Base):
     
     auction: Mapped['Auction'] = relationship("Auction", back_populates='auction_pokemon')
     pokemon: Mapped['Pokemon'] = relationship("Pokemon", back_populates='auction_pokemon')
+
+class AuctionAccepted(Base):
+    __tablename__ = "auction_accepted"
+    
+    auction_id: Mapped[int] = Column(Integer, ForeignKey('auctions.id'), primary_key=True)
+    pokemon_id: Mapped[int] = Column(Integer, ForeignKey('pokemon.id'), primary_key=True)
+    price: Mapped[int] = Column(Integer, nullable=False)
+    
+    auction: Mapped['Auction'] = relationship("Auction", back_populates='auction_accepted')
+    pokemon: Mapped['Pokemon'] = relationship("Pokemon", back_populates='auction_accepted')
+
 
 class Pokemon(Base):
     __tablename__ = "pokemon"
@@ -21,7 +32,8 @@ class Pokemon(Base):
     name: Mapped[str] = Column(String, nullable=False)
     rarity: Mapped[int] = Column(Integer, nullable=False)
     gif: Mapped[str] = Column(String, nullable=False)
-    auction_pokemon: Mapped[list[AuctionPokemon]] = relationship(back_populates='pokemon')
+    auction_bundle: Mapped[list[AuctionBundle]] = relationship(back_populates='pokemon')
+    auction_accepted: Mapped[list[AuctionAccepted]] = relationship(back_populates='pokemon')
 
 class Auction(Base):
     __tablename__ = "auctions"
@@ -38,4 +50,5 @@ class Auction(Base):
     accepted_list: Mapped[list[int]] = Column(String, nullable=False, default="")
     bundle: Mapped[bool] = Column(Boolean, nullable=False, default=False)
     ended: Mapped[bool] = Column(Boolean, nullable=False, default=False)
-    auction_pokemon: Mapped[list[AuctionPokemon]] = relationship(back_populates='auction')
+    auction_bundle: Mapped[list[AuctionBundle]] = relationship(back_populates='auction')
+    auction_accepted: Mapped[list[AuctionAccepted]] = relationship(back_populates='auction')
