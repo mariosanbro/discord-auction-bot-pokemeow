@@ -3,6 +3,7 @@ from ...database.database import get_database_manager
 from ...database.models import Auction as AuctionModel
 from ...database.models import Pokemon as PokemonModel
 from ...database.models import AuctionPokemon as AuctionPokemonModel
+from ...database.models import AuctionAccepted as AuctionAcceptedModel
 from configuration.configuration import load_config
 from configuration.utils import hex_to_int, rarity_to_string, rarity_to_formatted_string
 import asyncio
@@ -160,7 +161,40 @@ async def end_auction(config: dict, interaction: discord.Interaction, auction: A
     ongoing_message: discord.Message = await ongoing_channel.fetch_message(auction.ongoing_message_id)
     await ongoing_message.delete()
     await auction_channel.delete()
+
+async def start_auction(config: dict, interaction: discord.Interaction, auction: AuctionModel, pokemon: list[PokemonModel], runtime: int, embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str, user: discord.User) -> None:
+    database_manager = get_database_manager()
     
+    if not auction.bundle:
+        pokemon: PokemonModel = pokemon[0]
+    await interaction.response.edit_message(content=f"{user.mention}, you have started an auction for: {pokemon.name if not auction.bundle else 'Bundle'}", embed=None, view=None)
+    
+    category_id: int = config['auctions_category']
+    category: discord.CategoryChannel = interaction.guild.get_channel(category_id)
+    new_channel: discord.TextChannel = await interaction.guild.create_text_channel(name=f'{formatted_rarity}-{pokemon.name if not auction.bundle else "Bundle"}', category=category)
+    auction_creation_time: int = int(datetime.datetime.now().timestamp())
+    auction_end_time: int = auction_creation_time + runtime
+    auction.channel_id = new_channel.id
+    auction.end_time = auction_end_time
+    
+    auction_embed: discord.Embed = auction_embed_builder(interaction, auction, embed_color, formatted_rarity, rarity_emoji, pokecoins_emoji)
+    auction_view: AuctionView = AuctionView(auction=auction, embed_color=embed_color, formatted_rarity=formatted_rarity, rarity_emoji=rarity_emoji, pokecoins_emoji=pokecoins_emoji)
+    auction_message: discord.Message = await new_channel.send(content=CONTENT_AUCTION_MESSAGE, embed=auction_embed, view=auction_view)
+    auction_view.auction_message = auction_message
+    
+    new_auction_embed: discord.Embed = new_auction_embed_builder(auction, embed_color, formatted_rarity, user, new_channel)
+    ongoing_channel_id: int = config['ongoing_channel']
+    ongoing_channel: discord.TextChannel = interaction.guild.get_channel(ongoing_channel_id)
+    ongoing_message: discord.Message = await ongoing_channel.send(embed=new_auction_embed)
+    auction.ongoing_message_id = ongoing_message.id
+    
+    inserted: bool = await database_manager.insert(auction, channel_id=new_channel.id)
+    if not inserted:
+        await interaction.response.edit_message(content="An error occurred while creating the auction!", embed=None, view=None)
+        return
+    
+    await interaction.channel.send(embed=new_auction_embed)
+
 class AuctionView(discord.ui.View):
     def __init__(self, *, auction: AuctionModel, embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str, auction_message: discord.Message | None = None):
         super().__init__(timeout=None)
@@ -189,12 +223,119 @@ class AuctionView(discord.ui.View):
         await interaction.response.send_message(message, ephemeral=True)
 
 
+class AcceptedModal(discord.ui.Modal):
+    def __init__(self, *, accepted_view: 'AcceptedView', title: str = 'Accepted Pokemon', timeout: float | None = None) -> None:
+        super().__init__(title=title, timeout=timeout)
+        self.accepted_view: AcceptedView = accepted_view
+        self.database_manager = get_database_manager()
+        
+    pokemon: discord.TextInput = discord.ui.TextInput(
+        label='Pokemon',
+        placeholder='Enter the dex number of the pokemon you want to accept',
+        min_length=1,
+        max_length=4,
+        required=True
+    )
+    
+    price: discord.TextInput = discord.ui.TextInput(
+        label='Price',
+        placeholder='Enter the price of the pokemon',
+        min_length=1,
+        max_length=12,
+        required=True
+    )
+    
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not self.pokemon.value.isdigit():
+            await interaction.response.send_message("Invalid dex number, please enter a valid number!", ephemeral=True)
+            return
+        if not self.price.value.isdigit():
+            await interaction.response.send_message("Invalid price, please enter a valid number!", ephemeral=True)
+            return
+        pokemon: PokemonModel = await self.database_manager.fetch_one(PokemonModel, dex_number=int(self.pokemon.value))
+        accepted: AuctionAcceptedModel = AuctionAcceptedModel(
+            pokemon=pokemon,
+            price=int(self.price.value)
+        )
+        self.accepted_view.accepted_list.append(accepted)
+        self.accepted_view.timeout = 60
+        await interaction.response.send_message(f"{rarity_to_formatted_string(pokemon.rarity)} {pokemon.name} has been added to the accepted list!", ephemeral=True)
+        
+
+class AcceptedSelect(discord.ui.Select):
+    def __init__(self, *, accepted_view: 'AcceptedView') -> None:
+        self.accepted_view: AcceptedView = accepted_view
+        options: list[discord.SelectOption] = []
+        options.append(discord.SelectOption(label='Cancel', value=-1))
+        options.extend([
+            discord.SelectOption(label=f"{rarity_to_formatted_string(accepted.pokemon.rarity)} {accepted.pokemon.name} | {accepted.price:,}", value=f"{self.accepted_view.accepted_list.index(accepted)}")
+            for accepted in self.accepted_view.accepted_list
+        ])
+        super().__init__(placeholder='Choose which accepted to remove', min_values=1, max_values=1, options=options)
+        
+    async def callback(self, interaction: discord.Interaction) -> None:
+        index: int = int(self.values[0])
+        if index == -1:
+            for button in self.accepted_view.children:
+                button.disabled = False
+            self.accepted_view.remove_item(self)
+            await self.accepted_view.accepted_message.edit(view=self.accepted_view)
+            await interaction.response.send_message("Selection has been cancelled!", ephemeral=True)
+            return
+        self.accepted_view.accepted_list.pop(index)
+        self.options.pop(index + 1)
+        await self.accepted_view.accepted_message.edit(view=self.accepted_view)
+        await interaction.response.send_message("Accepted pokemon has been removed!", ephemeral=True)
+
+class AcceptedView(discord.ui.View):
+    def __init__(self, *, auction: AuctionModel, accepted_list: list[AuctionAcceptedModel], embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str, runtime: int, accepted_message: discord.Message | None = None, timeout: float | None = None):
+        super().__init__(timeout=timeout)
+        self.config = load_config()
+        self.auction: AuctionModel = auction
+        self.accepted_list: list[AuctionAcceptedModel] = accepted_list if len(accepted_list) > 0 else []
+        self.embed_color: int = embed_color
+        self.formatted_rarity: str = formatted_rarity
+        self.rarity_emoji: str = rarity_emoji
+        self.pokecoins_emoji: str = pokecoins_emoji
+        self.runtime: int = runtime
+        self.accepted_message: discord.Message | None = None
+        self.database_manager = get_database_manager()
+        
+    async def on_timeout(self) -> None:
+        for button in self.children:
+            button.disabled = True
+            
+    @discord.ui.button(label='Add', style=discord.ButtonStyle.primary)
+    async def add_button_av(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.send_modal(AcceptedModal(accepted_view=self))
+        
+    @discord.ui.button(label='Remove', style=discord.ButtonStyle.danger)
+    async def remove_button_av(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        for btn in self.children:
+            btn.disabled = True
+        self.add_item(AcceptedSelect(accepted_view=self))
+        await interaction.response.defer(ephemeral=True)
+        await self.accepted_message.edit(view=self)
+    
+    @discord.ui.button(label='Done', style=discord.ButtonStyle.success)
+    async def done_button_av(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if len(self.accepted_list) == 0:
+            await interaction.response.send_message("You must add at least one accepted pokemon!", ephemeral=True)
+            return
+        self.auction.auction_accepted = [accepted for accepted in self.accepted_list] # TODO: Change auction accepted_list to auction_accepted thing
+        pokemon: list[PokemonModel] = [auction_pokemon.pokemon for auction_pokemon in self.auction.auction_pokemon]
+        await start_auction(self.config, interaction, self.auction, pokemon, self.runtime, self.embed_color, self.formatted_rarity, self.rarity_emoji, self.pokecoins_emoji, interaction.user)
+        for button in self.children:
+            button.disabled = True
+
+
 class ConfirmView(discord.ui.View):
-    def __init__(self, *, pokemon: list[PokemonModel], auction: AuctionModel, embed_color: int, formatted_rarity: str, rarity_emoji: str, timeout: float | None = 60):
+    def __init__(self, *, pokemon: list[PokemonModel], auction: AuctionModel, runtime: int, embed_color: int, formatted_rarity: str, rarity_emoji: str, timeout: float | None = 60):
         super().__init__(timeout=timeout)
         self.config = load_config()
         self.pokemon: list[PokemonModel] = pokemon
         self.auction: AuctionModel = auction
+        self.runtime: int = runtime
         self.embed_color: int = embed_color
         self.formatted_rarity: str = formatted_rarity
         self.rarity_emoji: str = rarity_emoji
@@ -205,42 +346,25 @@ class ConfirmView(discord.ui.View):
             button.disabled = True
         
     @discord.ui.button(label='Confirm', style=discord.ButtonStyle.success)
-    async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+    async def confirm_button_cv(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         user: discord.User = interaction.user
         pokecoins_emoji: str = self.config['emojis']['pokecoins']
         patreon_tokens_emoji: str = self.config['emojis']['patreontokens']
-        if not self.auction.bundle:
-            self.pokemon: PokemonModel = self.pokemon[0]
-        await interaction.response.edit_message(content=f"{user.mention}, you have started an auction for: {self.pokemon.name if not self.auction.bundle else 'Bundle'}", embed=None, view=None)
         
-        category_id: int = self.config['auctions_category']
-        category: discord.CategoryChannel = interaction.guild.get_channel(category_id)
-        new_channel: discord.TextChannel = await interaction.guild.create_text_channel(name=f'{self.formatted_rarity}-{self.pokemon.name if not self.auction.bundle else "Bundle"}', category=category)
-        self.auction.channel_id = new_channel.id
-        
-        auction_embed: discord.Embed = auction_embed_builder(interaction, self.auction, self.embed_color, self.formatted_rarity, self.rarity_emoji, pokecoins_emoji)
-        auction_view: AuctionView = AuctionView(auction=self.auction, embed_color=self.embed_color, formatted_rarity=self.formatted_rarity, rarity_emoji=self.rarity_emoji, pokecoins_emoji=pokecoins_emoji)
-        auction_message: discord.Message = await new_channel.send(content=CONTENT_AUCTION_MESSAGE, embed=auction_embed, view=auction_view)
-        auction_view.auction_message = auction_message
-        
-        new_auction_embed: discord.Embed = new_auction_embed_builder(self.auction, self.embed_color, self.formatted_rarity, user, new_channel)
-        
-        ongoing_channel_id: int = self.config['ongoing_channel']
-        ongoing_channel: discord.TextChannel = interaction.guild.get_channel(ongoing_channel_id)
-        ongoing_message: discord.Message = await ongoing_channel.send(embed=new_auction_embed)
-        self.auction.ongoing_message_id = ongoing_message.id
-        
-        inserted: bool = await self.database_manager.insert(self.auction, channel_id=new_channel.id)
-        if not inserted:
-            await interaction.response.edit_message(content="An error occurred while creating the auction!", embed=None, view=None)
+        if self.auction.accepted:
+            for button in self.children:
+                button.disabled = True
+            accepted_view: AcceptedView = AcceptedView(auction=self.auction, accepted_list=[], embed_color=self.embed_color, formatted_rarity=self.formatted_rarity, rarity_emoji=self.rarity_emoji, pokecoins_emoji=pokecoins_emoji, runtime=self.runtime)
+            await interaction.response.send_message("Please add the accepted pokemon!", ephemeral=True, view=accepted_view)
+            accepted_message: discord.Message = await interaction.original_response()
+            accepted_view.accepted_message = accepted_message
             return
-        
-        await interaction.channel.send(embed=new_auction_embed)
+        await start_auction(self.config, interaction, self.auction, self.pokemon, self.runtime, self.embed_color, self.formatted_rarity, self.rarity_emoji, pokecoins_emoji, user)
         
     @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger)
-    async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+    async def cancel_button_cv(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         await interaction.response.edit_message(content="Auction has been cancelled!", embed=None, view=None)
-        
+
 
 class BidModal(discord.ui.Modal):
     def __init__(self, *, auction_message:discord.Message, embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str, title: str = 'Auction Bid', timeout: float | None = None) -> None:
@@ -257,7 +381,7 @@ class BidModal(discord.ui.Modal):
         label='Pokecoins',
         placeholder='Enter the amount of pokecoins you want to bid',
         min_length=1,
-        max_length=11,
+        max_length=12,
         required=True
     )
     
@@ -382,7 +506,7 @@ class Auction(commands.Cog):
     @discord.app_commands.describe(
         dex_number=f'The dex number of the pokemon you want to auction (format: dex_number{QUANTITY_SEPARATOR}quantity (if no quantity, default is 1), if bundle separate by commas)',
         runtime='The time the auction will last',
-        accepted='Does the auction accept pokemon? | WIP',
+        accepted='Does the auction accept pokemon?',
         autobuy='The price at which the auction will be automatically bought (Optional)'
     )
     async def auction(self, interaction: discord.Interaction, dex_number: str, runtime: int, accepted: int, autobuy: int | None = None) -> None:
@@ -436,7 +560,7 @@ class Auction(commands.Cog):
         embed_color: int = hex_to_int(self.config['colors'][rarity_string])
         
         confirm_embed: discord.Embed = confirmed_embed_builder(pokemon, auction, embed_color, formatted_rarity, bundle, bool(accepted))
-        await interaction.response.send_message(embed=confirm_embed, ephemeral=True, view=ConfirmView(pokemon=pokemon, auction=auction, embed_color=embed_color, formatted_rarity=formatted_rarity, rarity_emoji=rarity_emoji))
+        await interaction.response.send_message(embed=confirm_embed, ephemeral=True, view=ConfirmView(pokemon=pokemon, auction=auction, runtime=runtime, embed_color=embed_color, formatted_rarity=formatted_rarity, rarity_emoji=rarity_emoji))
             
 
 async def setup(bot: commands.Bot) -> None:
