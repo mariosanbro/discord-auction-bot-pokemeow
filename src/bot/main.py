@@ -5,7 +5,7 @@ import dotenv
 import os
 import time
 from discord.ext import commands
-from ..database.database import DatabaseManager, DATABASE_URL, get_database_manager
+from ..database.database import DatabaseManager, DATABASE_URL
 
 dotenv.load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")

@@ -1,4 +1,4 @@
-from ...database.database import get_database_manager
+from ...database.database import DatabaseManager, DATABASE_URL, get_database_manager
 from ...database.models import Pokemon as PokemonModel
 import discord
 from discord.ext import commands
@@ -7,7 +7,6 @@ from discord.ext import commands
 class Pokemon(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.database_manager = get_database_manager()
     
     pokemon_permissions = discord.Permissions(administrator=True)
     POKEMON = discord.app_commands.Group(name='pokemon', description='Pokemon related commands', default_permissions=pokemon_permissions)
@@ -28,8 +27,9 @@ class Pokemon(commands.Cog):
             ]
         )
     async def pokemon_add(self, interaction: discord.Interaction, dex_number: int, name: str, rarity: int, gif: str) -> None:
+        database_manager = get_database_manager()
         pokemon = PokemonModel(dex_number=dex_number, name=name, rarity=rarity, gif=gif)
-        await self.database_manager.insert(pokemon)
+        await database_manager.insert(pokemon)
         
         await interaction.response.send_message(f"Pokemon {name} added to the database")
 
