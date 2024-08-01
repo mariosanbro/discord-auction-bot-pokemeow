@@ -67,9 +67,12 @@ class Auction(Base):
     
     id: Mapped[uuid.UUID] = Column(UUID, primary_key=True, default=uuid.uuid4, index=True)
     channel_id: Mapped[int] = Column(Integer, nullable=False)
+    auction_message_id: Mapped[int] = Column(Integer, nullable=False)
     ongoing_message_id: Mapped[int] = Column(Integer, nullable=False)
     user_id: Mapped[int] = Column(Integer, nullable=False)
     current_bid: Mapped[int] = Column(Integer, nullable=False, default=0)
+    accepted_coins: Mapped[int] = Column(Integer, nullable=False, default=0)
+    accepted_pokemon: Mapped[str] = Column(String, nullable=False, default='')
     bidder_id: Mapped[int | None] = Column(Integer)
     auto_buy: Mapped[int | None] = Column(Integer)
     end_time: Mapped[int] = Column(Integer, nullable=False)

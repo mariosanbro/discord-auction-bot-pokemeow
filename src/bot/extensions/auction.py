@@ -1,5 +1,4 @@
-from discord.utils import MISSING
-from ...database.database import DatabaseManager, DATABASE_URL, get_database_manager
+from ...database.database import DatabaseManager, get_database_manager
 from ...database.models import Auction as AuctionModel
 from ...database.models import Pokemon as PokemonModel
 from ...database.models import AuctionPokemon as AuctionPokemonModel
@@ -11,7 +10,6 @@ import datetime
 import discord
 import uuid
 from discord.ext import commands, tasks
-
 
 CONTENT_AUCTION_MESSAGE: str = "- Roles to ping | WIP\n> Please use the buttons below to bid on the auction!\n\n- **Remember, you must own what you are bidding!**"
 BUNDLE_IMAGE: str = 'https://cdn.discordapp.com/attachments/1256251099858337846/1257322212705439775/bundle.png?ex=6683fc0f&is=6682aa8f&hm=f968feee9546b5bd636f6f96ffbfeee69036cb69f954ac739d04da585a260025&'
@@ -179,6 +177,7 @@ async def start_auction(config: dict, interaction: discord.Interaction, auction:
     auction_view: AuctionView = AuctionView(is_bundle=auction.bundle, is_accepted=auction.accepted, embed_color=embed_color, formatted_rarity=formatted_rarity, rarity_emoji=rarity_emoji, pokecoins_emoji=pokecoins_emoji, database_manager=database_manager)
     auction_message: discord.Message = await new_channel.send(content=CONTENT_AUCTION_MESSAGE, embed=auction_embed, view=auction_view)
     auction_view.auction_message = auction_message
+    auction.auction_message_id = auction_message.id
     
     new_auction_embed: discord.Embed = new_auction_embed_builder(auction, auction_pokemon_list, embed_color, formatted_rarity, user, new_channel)
     ongoing_channel_id: int = config['ongoing_channel']
@@ -209,6 +208,8 @@ async def start_auction(config: dict, interaction: discord.Interaction, auction:
 class AuctionView(discord.ui.View):
     def __init__(self, *, is_bundle: bool, is_accepted: bool, embed_color: int, formatted_rarity: str, rarity_emoji: str, pokecoins_emoji: str, database_manager: DatabaseManager, auction_message: discord.Message | None = None):
         super().__init__(timeout=None)
+        self.is_bundle: bool = is_bundle
+        self.is_accepted: bool = is_accepted
         self.embed_color: int = embed_color
         self.formatted_rarity: str = formatted_rarity
         self.rarity_emoji: str = rarity_emoji
@@ -411,21 +412,69 @@ class BidModal(discord.ui.Modal):
         
     pokecoins: discord.TextInput = discord.ui.TextInput(
         label='Pokecoins',
-        placeholder='Enter the amount of pokecoins you want to bid',
+        placeholder='Amount of pokecoins you want to bid',
         min_length=1,
         max_length=12,
-        required=True
+        required=False
+    )
+    
+    pokemon: discord.TextInput = discord.ui.TextInput(
+        label='Pokemon',
+        placeholder='Dex number of the pokemon you want to bid (only if accepted)',
+        min_length=1,
+        required=False
     )
     
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        auction: AuctionModel = await self.database_manager.fetch_one(AuctionModel, channel_id=interaction.channel.id)
+        auction: AuctionModel | None = await self.database_manager.fetch_one(AuctionModel, channel_id=interaction.channel.id)
         if auction is None:
             await interaction.response.send_message("Auction not found!", ephemeral=True)
             return
-        try:
-            new_bid: int = int(self.pokecoins.value)
-        except ValueError:
-            await interaction.response.send_message("Invalid bid amount, please enter a valid number!", ephemeral=True)
+        if self.pokecoins.value == '' and self.pokemon.value == '':
+            await interaction.response.send_message('You must specify a bid!', ephemeral=True)
+            return
+        coins: int = 0
+        if self.pokecoins.value != '':
+            try:
+                coins: int = int(self.pokecoins.value)
+            except ValueError:
+                await interaction.response.send_message("Invalid bid amount, please enter a valid number!", ephemeral=True) # TODO change since is optional
+                return
+        auction.accepted_coins = coins
+        
+        price_accepted_pokemon: int = 0
+        if self.pokemon.value != '':
+            if auction.accepted == False:
+                await interaction.response.send_message("This auction doesn't accept pokemon!", ephemeral=True)
+                return
+            dex_number_list: list[int] = self.pokemon.value.replace(' ', '').split(',')
+            try:
+                dex_number_dict: list[dict[str, int]] = [
+                    {
+                        'dex_number': int(dex.split(QUANTITY_SEPARATOR)[0]),
+                        'quantity': int(dex.split(QUANTITY_SEPARATOR)[1]) if len(dex.split(QUANTITY_SEPARATOR)) > 1 else 1
+                    }
+                    for dex in dex_number_list
+                ]
+                dex_number_dict.sort(key=lambda x: x['dex_number'])
+            except ValueError:
+                await interaction.response.send_message("Invalid dex number, please enter a valid number!", ephemeral=True)
+                return
+            dex_number_to_quantity = {dex['dex_number']: dex['quantity'] for dex in dex_number_dict}
+            dex_number_accepted: list[int] = [accepted.pokemon.dex_number for accepted in auction.auction_accepted]
+            for dex_number in dex_number_dict:
+                if dex_number['dex_number'] not in dex_number_accepted:
+                    await interaction.response.send_message(f"{dex_number['dex_number']} is not in the accepted list!", ephemeral=True)
+                    return
+            
+            auction.accepted_pokemon = ','.join([f"{dex_number['dex_number']}{QUANTITY_SEPARATOR}{dex_number['quantity']}" for dex_number in dex_number_dict])
+            price_accepted_pokemon = sum(accepted.price * dex_number_to_quantity.get(accepted.pokemon.dex_number, 0)
+                            for accepted in auction.auction_accepted)
+        else:
+            auction.accepted_pokemon = ''
+        total_bid: int = coins + price_accepted_pokemon
+        if total_bid < 1:
+            await interaction.response.send_message("You must bid at least 1 coin.", ephemeral=True)
             return
         if auction.bidder_id == interaction.user.id:
             await interaction.response.send_message("You can't bid twice!", ephemeral=True)
@@ -433,32 +482,32 @@ class BidModal(discord.ui.Modal):
         if auction.ended:
             await interaction.response.send_message("Auction has already ended!", ephemeral=True)
             return
-        if auction.current_bid >= new_bid:
+        if auction.current_bid >= total_bid:
             await interaction.response.send_message("Your bid must be higher than the current bid!", ephemeral=True)
             return
-        if auction.auto_buy is not None:
-            if new_bid >= auction.auto_buy:
-                new_bid = auction.auto_buy
-                auction.current_bid = new_bid
-                auction.bidder_id = interaction.user.id
-                auction.end_time = int(datetime.datetime.now().timestamp())
-                updated: bool = await self.database_manager.update(auction, id=auction.id)
-                if not updated:
-                    await interaction.response.send_message("An error occurred while updating the auction!", ephemeral=True)
-                    return
-                await interaction.response.send_message(f"{interaction.user.mention}, you have successfully triggered the auto buy with {new_bid:,} pokecoins!", ephemeral=True)
-                await end_auction(self.config, interaction, auction, self.embed_color, self.formatted_rarity, self.rarity_emoji, self.pokecoins_emoji, self.database_manager)
+        if auction.auto_buy is not None and total_bid >= auction.auto_buy:
+            total_bid = auction.auto_buy
+            auction.current_bid = total_bid
+            auction.bidder_id = interaction.user.id
+            auction.end_time = int(datetime.datetime.now().timestamp())
+            updated: bool = await self.database_manager.update(auction, id=auction.id)
+            if not updated:
+                await interaction.response.send_message("An error occurred while updating the auction!", ephemeral=True)
                 return
+            await interaction.response.send_message(f"{interaction.user.mention}, you have successfully triggered the auto buy with {coins:,} pokecoins!", ephemeral=True)
+            await end_auction(self.config, interaction, auction, self.embed_color, self.formatted_rarity, self.rarity_emoji, self.pokecoins_emoji, self.database_manager)
+            return
 
         has_previous_bidder: bool = auction.bidder_id is not None
         
         if not has_previous_bidder:
-            await interaction.response.send_message(f"{interaction.user.mention}, you have successfully bid {new_bid:,} pokecoins on the auction!", delete_after=10)
+            await interaction.response.send_message(f"{interaction.user.mention}, you have successfully bid {total_bid:,} pokecoins on the auction!", delete_after=10)
         else:
             previous_bidder: discord.User = interaction.guild.get_member(auction.bidder_id)
-            await interaction.response.send_message(f"{interaction.user.mention}, you have successfully outbid {previous_bidder.mention} with {new_bid:,} pokecoins!", delete_after=10)
+            await interaction.response.send_message(f"{interaction.user.mention}, you have successfully outbid {previous_bidder.mention} with {total_bid:,} pokecoins!", delete_after=10)
         
-        auction.current_bid = new_bid
+        auction.accepted_coins = coins
+        auction.current_bid = total_bid
         auction.bidder_id = interaction.user.id
         updated: bool = await self.database_manager.update(auction, id=auction.id)
         if not updated:
@@ -595,7 +644,7 @@ class Auction(commands.Cog):
         
         confirm_embed: discord.Embed = confirmed_embed_builder(pokemon, auction, auction_pokemon_list, embed_color, formatted_rarity, bundle, bool(accepted))
         await interaction.response.send_message(embed=confirm_embed, ephemeral=True, view=ConfirmView(pokemon=pokemon, auction=auction, auction_pokemon_list=auction_pokemon_list, runtime=runtime, embed_color=embed_color, formatted_rarity=formatted_rarity, rarity_emoji=rarity_emoji, database_manager=database_manager))
-            
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Auction(bot))

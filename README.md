@@ -1,4 +1,4 @@
-# discord-auction-bot
+# discord-auction-bot-pokemeow
 This bot is an open source Discord bot coded in Python with [Discord.py](https://discordpy.readthedocs.io/en/stable/) by [mariosanbro](https://github.com/mariosanbro).
 Feel free to add a star :star: to the repository if you liked it!
 
@@ -15,8 +15,12 @@ Feel free to add a star :star: to the repository if you liked it!
 - [x] Basic auction system (auction and bid).
 - [x] Autobuy auction.
 - [x] Bundle auction.
-- [ ] Trading setup after auction ending.
 - [ ] Accepted in auction (for different bid methods).
+- [ ] Patreon tokens bid
+- [ ] Trading setup after auction ending.
+- [ ] Auction ping roles
+- [ ] Reputation system
+- [ ] Logging system
 
 More to come...
 
