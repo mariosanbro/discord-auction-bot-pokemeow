@@ -15,12 +15,13 @@ Feel free to add a star :star: to the repository if you liked it!
 - [x] Basic auction system (auction and bid).
 - [x] Autobuy auction.
 - [x] Bundle auction.
-- [ ] Accepted in auction (for different bid methods).
-- [ ] Patreon tokens bid
+- [x] Accepted in auction (for different bid methods).
+- [ ] Accepted list templates to quick load in auctions.
+- [ ] Patreon tokens bid.
 - [ ] Trading setup after auction ending.
-- [ ] Auction ping roles
-- [ ] Reputation system
-- [ ] Logging system
+- [ ] Auction ping roles.
+- [ ] Reputation system.
+- [ ] Logging system.
 
 More to come...
 

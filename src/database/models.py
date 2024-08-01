@@ -81,6 +81,24 @@ class Auction(Base):
     ended: Mapped[bool] = Column(Boolean, nullable=False, default=False)
     auction_pokemon: Mapped[list[AuctionPokemon]] = relationship(back_populates='auction')
     auction_accepted: Mapped[list[AuctionAccepted]] = relationship(back_populates='auction')
+    accepted_pokemon: Mapped[list['AcceptedPokemon']] = relationship(back_populates='auction')
     
     def __repr__(self):
         return f"<Auction id={self.id} channel_id={self.channel_id} ongoing_message_id={self.ongoing_message_id} user_id={self.user_id} current_bid={self.current_bid} bidder_id={self.bidder_id} auto_buy={self.auto_buy} end_time={self.end_time} accepted={self.accepted} bundle={self.bundle} ended={self.ended}>"
+
+class Accepted(Base):
+    __tablename__ = "accepted"
+    
+    id: Mapped[int] = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    user_id: Mapped[int] = Column(Integer)
+    
+    pokemon: Mapped['Pokemon'] = relationship("Pokemon", back_populates='auction_accepted')
+    
+class AcceptedPokemon(Base):
+    __tablename__ = "accepted_pokemon"
+    
+    accepted_id: Mapped[int] = Column(Integer, ForeignKey('accepted.id'), primary_key=True)
+    pokemon_id: Mapped[int] = Column(Integer, ForeignKey('pokemon.id'), primary_key=True)
+    price: Mapped[int] = Column(Integer, nullable=False)
+    
+    pokemon: Mapped['Pokemon'] = relationship("Pokemon", back_populates='accepted_pokemon')
